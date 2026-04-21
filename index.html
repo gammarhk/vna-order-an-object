@@ -124,7 +124,7 @@ header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:u
 
   <div class="search-panel">
     <div class="search-row">
-      <input type="text" id="searchInput" placeholder="Search the collection…">
+      <input type="text" id="searchInput" placeholder='Search… use "exact match" or -"exclude"'>
       <button class="search-btn" id="searchBtn">Search</button>
     </div>
     <div class="filters-row">
@@ -484,14 +484,49 @@ let filtered={
   loading:false,
 };
 
+// --- Search parsing ---
+// "xxx" = exact match, -"xxx" = exclude, rest = free text for API
+function parseSearch(raw){
+  const pos=[],neg=[];
+  let free=raw;
+  // Extract -"..." negative filters first
+  free=free.replace(/-"([^"]+)"/g,(_,t)=>{neg.push(t.toLowerCase());return ''});
+  // Extract "..." positive exact matches
+  free=free.replace(/"([^"]+)"/g,(_,t)=>{pos.push(t.toLowerCase());return ''});
+  free=free.replace(/\s+/g,' ').trim();
+  // Also send positive terms as part of API query for better relevance
+  const apiQuery=[free,...pos].filter(Boolean).join(' ');
+  return{apiQuery,pos,neg,hasFilters:pos.length>0||neg.length>0};
+}
+
+let searchFilters={pos:[],neg:[],hasFilters:false};
+
+function itemText(item){
+  // Combine all searchable text fields from an item
+  return[item._primaryTitle,item.objectType,item._primaryMaker?.name,item._primaryDate,item._primaryPlace,item.accessionNumber].filter(Boolean).join(' ').toLowerCase();
+}
+
+function matchesFilters(item){
+  if(!searchFilters.hasFilters)return true;
+  const t=itemText(item);
+  // All positive terms must appear
+  for(const p of searchFilters.pos){if(!t.includes(p))return false}
+  // No negative terms may appear
+  for(const n of searchFilters.neg){if(t.includes(n))return false}
+  return true;
+}
+
 function buildParams(){
   const p=new URLSearchParams({images_exist:'true',is_requestable:'true'});
-  const q=document.getElementById('searchInput').value.trim();
+  const raw=document.getElementById('searchInput').value.trim();
+  const parsed=parseSearch(raw);
+  searchFilters=parsed;
+  if(parsed.apiQuery)p.set('q',parsed.apiQuery);
   const v=document.getElementById('venueFilter').value;
   const t=document.getElementById('typeFilter').value;
   const yf=document.getElementById('yearFrom').value;
   const yt=document.getElementById('yearTo').value;
-  if(q)p.set('q',q);if(v)p.set('kw_resident_venue',v);if(t)p.set('kw_object_type',t);
+  if(v)p.set('kw_resident_venue',v);if(t)p.set('kw_object_type',t);
   if(yf)p.set('year_made_from',yf);if(yt)p.set('year_made_to',yt);
   return p;
 }
@@ -506,6 +541,10 @@ async function fetchResults(page){
   try{
     const r=await fetch(VA_API+'?'+p);if(!r.ok)throw new Error('API error: '+r.status);
     state.results=await r.json();state.page=page;
+    // Apply client-side filters
+    if(searchFilters.hasFilters){
+      state.results.records=(state.results.records||[]).filter(matchesFilters);
+    }
     renderNormal();
   }catch(e){ct.innerHTML='<div class="error-msg">\u26a0 '+e.message+'</div>'}
 }
@@ -539,7 +578,7 @@ async function fetchFiltered(virtualPage){
       filtered.totalCount=data.info?.record_count||0;
       const recs=data.records||[];
       for(const rec of recs){
-        if(!state.viewedIds.has(rec.systemNumber)){
+        if(!state.viewedIds.has(rec.systemNumber)&&matchesFilters(rec)){
           filtered.buffer.push(rec);
         }
       }
