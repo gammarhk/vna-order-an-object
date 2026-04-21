@@ -72,6 +72,11 @@ header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:u
 .loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--text2);font-size:14px}
 .spinner{width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
 .error-msg{padding:12px;background:rgba(192,57,43,.08);color:var(--danger);border-radius:8px;margin-bottom:16px;font-size:13px}
+.import-bar{background:var(--surface);border-radius:10px;padding:10px 14px;margin-bottom:16px;border:1px solid var(--accent);display:flex;align-items:center;gap:10px;font-size:13px;animation:fadeIn .2s ease}
+.import-bar .spinner{width:14px;height:14px;border-width:2px}
+.import-bar .import-text{flex:1;color:var(--accent)}
+.import-bar .import-done{color:var(--viewed);font-weight:500}
+.import-bar .import-err{color:var(--danger)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 @media(max-width:500px){.grid{grid-template-columns:repeat(2,1fr);gap:10px}}
 .card{background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border);animation:fadeIn .3s ease}
@@ -114,6 +119,8 @@ header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:u
       </div>
     </div>
   </header>
+
+  <div id="importBar"></div>
 
   <div class="search-panel">
     <div class="search-row">
@@ -161,18 +168,20 @@ header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:u
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 const CLIENT_ID='254726805331-s8n400uimdiqioij2m3v0h22523csr11.apps.googleusercontent.com';
-const SCOPES='https://www.googleapis.com/auth/drive.appdata';
+const SCOPES='https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.profile';
 const DRIVE_FILE='va_viewed_items.json';
-const API='https://api.vam.ac.uk/v2/objects/search';
+const VA_API='https://api.vam.ac.uk/v2/objects/search';
+const VA_OBJ='https://api.vam.ac.uk/v2/objects';
 const IMG='https://framemark.vam.ac.uk/collections';
 const OBJ_URL='https://collections.vam.ac.uk/item';
 const LOCAL_KEY='va_viewed_items';
+const IMPORT_TS_KEY='va_last_gmail_import';
 const PAGE_SIZE=20;
 
 let state={page:1,results:null,viewedIds:new Set(),viewedDetails:{},hideViewed:false,showManage:false};
 let auth={token:null,user:null,fileId:null,syncing:false,tokenClient:null,showMenu:false};
 
-// --- Local storage (offline cache) ---
+// --- Local storage ---
 function loadLocal(){try{const r=localStorage.getItem(LOCAL_KEY);if(r){const d=JSON.parse(r);state.viewedIds=new Set(d.ids||[]);state.viewedDetails=d.details||{}}}catch{}}
 function saveLocal(){try{localStorage.setItem(LOCAL_KEY,JSON.stringify({ids:[...state.viewedIds],details:state.viewedDetails}))}catch{}}
 
@@ -232,6 +241,154 @@ async function syncTo(){
 let syncTimer=null;
 function scheduleSync(){saveLocal();if(!auth.token)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncTo(),1500)}
 
+// ================================
+// Gmail Import
+// ================================
+async function gmailReq(url){
+  const r=await fetch(url,{headers:{Authorization:'Bearer '+auth.token}});
+  if(!r.ok)throw new Error('Gmail '+r.status);
+  return r.json();
+}
+
+function decodeBase64Url(str){
+  // Gmail uses URL-safe base64
+  let s=str.replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length%4)s+='=';
+  return atob(s);
+}
+
+function getBodyText(payload){
+  // Recursively extract text/plain body from Gmail message payload
+  if(payload.mimeType==='text/plain'&&payload.body?.data){
+    return decodeBase64Url(payload.body.data);
+  }
+  if(payload.parts){
+    for(const part of payload.parts){
+      const t=getBodyText(part);
+      if(t)return t;
+    }
+  }
+  return '';
+}
+
+function extractSystemNos(text){
+  const matches=[];
+  const re=/System No:\s*(O\d+)/gi;
+  let m;
+  while((m=re.exec(text))!==null){
+    matches.push(m[1]);
+  }
+  return [...new Set(matches)];
+}
+
+async function lookupVAObject(systemNo){
+  try{
+    const r=await fetch(VA_OBJ+'/'+systemNo);
+    if(!r.ok)return null;
+    const d=await r.json();
+    const rec=d.record||d;
+    return{
+      systemNumber:rec.systemNumber||systemNo,
+      title:rec.titles?.[0]?.title||rec.objectType||'Untitled',
+      accession:rec.accessionNumber||'',
+      objectType:rec.objectType||'',
+      maker:rec.artistMakerPerson?.[0]?.name?.text||rec.artistMakerOrganisation?.[0]?.name?.text||'',
+      date:rec.productionDates?.[0]?.date?.text||'',
+      imageId:rec.images?.[0]||rec._primaryImageId||null,
+    };
+  }catch{return null}
+}
+
+async function importFromGmail(){
+  if(!auth.token)return;
+
+  const bar=document.getElementById('importBar');
+  bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Scanning Gmail for V&A booking confirmations\u2026</span></div>';
+
+  try{
+    // Search for all V&A booking confirmation emails
+    let allMsgIds=[];
+    let pageToken='';
+    const query='from:OrderAnObject@vam.ac.uk subject:"Booking confirmation"';
+
+    do{
+      const url='https://gmail.googleapis.com/gmail/v1/users/me/messages?q='+encodeURIComponent(query)+'&maxResults=100'+(pageToken?'&pageToken='+pageToken:'');
+      const data=await gmailReq(url);
+      if(data.messages)allMsgIds.push(...data.messages.map(m=>m.id));
+      pageToken=data.nextPageToken||'';
+    }while(pageToken);
+
+    if(allMsgIds.length===0){
+      bar.innerHTML='<div class="import-bar"><span class="import-done">No V&A booking emails found in Gmail.</span></div>';
+      setTimeout(()=>{bar.innerHTML=''},4000);
+      return;
+    }
+
+    bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Found '+allMsgIds.length+' booking email'+(allMsgIds.length>1?'s':'')+'. Extracting objects\u2026</span></div>';
+
+    // Fetch each email and extract system numbers
+    const allSystemNos=new Set();
+    for(const msgId of allMsgIds){
+      try{
+        const msg=await gmailReq('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+msgId+'?format=full');
+        const body=getBodyText(msg.payload);
+        const nos=extractSystemNos(body);
+        nos.forEach(n=>allSystemNos.add(n));
+      }catch(e){console.warn('Failed to read message',msgId,e)}
+    }
+
+    // Filter out ones we already have
+    const newNos=[...allSystemNos].filter(sn=>!state.viewedIds.has(sn));
+
+    if(newNos.length===0){
+      const total=allSystemNos.size;
+      bar.innerHTML='<div class="import-bar"><span class="import-done">\u2713 All '+total+' object'+(total>1?'s':'')+' from Gmail already in your viewed list.</span></div>';
+      setTimeout(()=>{bar.innerHTML=''},4000);
+      return;
+    }
+
+    bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Looking up '+newNos.length+' new object'+(newNos.length>1?'s':'')+' from V&A API\u2026</span></div>';
+
+    // Look up each new system number
+    let imported=0;
+    for(const sn of newNos){
+      const info=await lookupVAObject(sn);
+      if(info){
+        state.viewedIds.add(sn);
+        state.viewedDetails[sn]={
+          title:info.title,
+          accession:info.accession,
+          objectType:info.objectType,
+          maker:info.maker,
+          date:info.date,
+          imageId:info.imageId,
+        };
+        imported++;
+        bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Imported '+imported+' of '+newNos.length+' objects\u2026</span></div>';
+      }
+    }
+
+    // Save
+    saveLocal();
+    updateBadge();
+    if(state.results)renderResults();
+    if(state.showManage)renderManage();
+
+    // Sync to Drive
+    if(auth.token){
+      try{await writeFile({ids:[...state.viewedIds],details:state.viewedDetails})}catch{}
+    }
+
+    bar.innerHTML='<div class="import-bar"><span class="import-done">\u2713 Imported '+imported+' new object'+(imported>1?'s':'')+' from '+allMsgIds.length+' email'+(allMsgIds.length>1?'s':'')+'.</span></div>';
+    setTimeout(()=>{bar.innerHTML=''},6000);
+
+  }catch(e){
+    console.error('Gmail import error:',e);
+    bar.innerHTML='<div class="import-bar"><span class="import-err">\u26a0 Gmail import failed: '+e.message+'</span></div>';
+    setTimeout(()=>{bar.innerHTML=''},6000);
+  }
+}
+
 // --- Auth UI ---
 function setSyncSt(s){auth.syncing=s==='syncing';renderAuth()}
 function renderAuth(){
@@ -246,10 +403,13 @@ function renderAuth(){
     a.innerHTML='<div class="sync-bar"><div class="sync-dot '+sc+'"></div><span>'+st+'</span></div>'+
       '<div class="user-info" id="userInfo">'+
       (p?'<img class="user-avatar" src="'+p+'" alt="">':'<div class="user-avatar" style="background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;">'+n[0]+'</div>')+
-      (auth.showMenu?'<div class="user-menu"><button id="signOutBtn">Sign out</button></div>':'')+
+      (auth.showMenu?'<div class="user-menu"><button id="signOutBtn">Sign out</button><button id="rescanBtn">Re-scan Gmail</button></div>':'')+
       '</div>';
     document.getElementById('userInfo').addEventListener('click',e=>{e.stopPropagation();auth.showMenu=!auth.showMenu;renderAuth()});
-    if(auth.showMenu){const b=document.getElementById('signOutBtn');if(b)b.addEventListener('click',signOut)}
+    if(auth.showMenu){
+      const b=document.getElementById('signOutBtn');if(b)b.addEventListener('click',signOut);
+      const r=document.getElementById('rescanBtn');if(r)r.addEventListener('click',()=>{auth.showMenu=false;renderAuth();importFromGmail()});
+    }
   }
 }
 function signOut(){
@@ -266,8 +426,17 @@ function initAuth(){
       clearInterval(iv);
       auth.tokenClient=google.accounts.oauth2.initTokenClient({
         client_id:CLIENT_ID,
-        scope:SCOPES+' https://www.googleapis.com/auth/userinfo.profile',
-        callback:async(resp)=>{if(resp.access_token){auth.token=resp.access_token;await fetchUser();renderAuth();syncFrom()}}
+        scope:SCOPES,
+        callback:async(resp)=>{
+          if(resp.access_token){
+            auth.token=resp.access_token;
+            await fetchUser();
+            renderAuth();
+            await syncFrom();
+            // Auto-import from Gmail after Drive sync
+            importFromGmail();
+          }
+        }
       });
       renderAuth();
     }
@@ -290,7 +459,7 @@ async function fetchResults(page){
   const yt=document.getElementById('yearTo').value;
   if(q)p.set('q',q);if(v)p.set('kw_resident_venue',v);if(t)p.set('kw_object_type',t);
   if(yf)p.set('year_made_from',yf);if(yt)p.set('year_made_to',yt);
-  try{const r=await fetch(API+'?'+p);if(!r.ok)throw new Error('API error: '+r.status);
+  try{const r=await fetch(VA_API+'?'+p);if(!r.ok)throw new Error('API error: '+r.status);
     state.results=await r.json();state.page=page;renderResults();
   }catch(e){ct.innerHTML='<div class="error-msg">\u26a0 '+e.message+'</div>'}
 }
@@ -331,7 +500,7 @@ function renderManage(){
   if(!state.showManage){panel.style.display='none';return}
   panel.style.display='flex';
   const ids=[...state.viewedIds];
-  if(!ids.length){panel.innerHTML='<div class="manage-header"><h3>Viewed Items (0)</h3><button class="close-btn" onclick="toggleManage()">\u2715</button></div><p class="empty-msg">No items marked yet. Tap \u25ef on any result.</p>';return}
+  if(!ids.length){panel.innerHTML='<div class="manage-header"><h3>Viewed Items (0)</h3><button class="close-btn" onclick="toggleManage()">\u2715</button></div><p class="empty-msg">No items marked yet. Tap \u25ef on any result, or sign in to import from Gmail.</p>';return}
   panel.innerHTML='<div class="manage-header"><h3>Viewed Items ('+ids.length+')</h3><button class="close-btn" onclick="toggleManage()">\u2715</button></div><div class="viewed-list">'+
     ids.map(id=>{const d=state.viewedDetails[id]||{};const th=d.imageId?imgUrl(d.imageId,60):'';
       return '<div class="viewed-list-item">'+(th?'<img src="'+th+'" alt="">':'')+
