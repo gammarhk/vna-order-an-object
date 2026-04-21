@@ -258,17 +258,22 @@ function decodeBase64Url(str){
 }
 
 function getBodyText(payload){
-  // Recursively extract text/plain body from Gmail message payload
-  if(payload.mimeType==='text/plain'&&payload.body?.data){
-    return decodeBase64Url(payload.body.data);
+  // Recursively extract ALL text from Gmail message payload (plain + HTML)
+  let texts=[];
+  if(payload.body?.data){
+    let decoded=decodeBase64Url(payload.body.data);
+    if(payload.mimeType==='text/html'){
+      // Strip HTML tags to get raw text (System No: etc. survive this)
+      decoded=decoded.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&');
+    }
+    texts.push(decoded);
   }
   if(payload.parts){
     for(const part of payload.parts){
-      const t=getBodyText(part);
-      if(t)return t;
+      texts.push(getBodyText(part));
     }
   }
-  return '';
+  return texts.join('\n');
 }
 
 function extractSystemNos(text){
@@ -309,7 +314,7 @@ async function importFromGmail(){
     // Search for all V&A booking confirmation emails
     let allMsgIds=[];
     let pageToken='';
-    const query='from:OrderAnObject@vam.ac.uk subject:"Booking confirmation"';
+    const query='subject:"Order an Object appointment"';
 
     do{
       const url='https://gmail.googleapis.com/gmail/v1/users/me/messages?q='+encodeURIComponent(query)+'&maxResults=100'+(pageToken?'&pageToken='+pageToken:'');
