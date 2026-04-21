@@ -175,7 +175,7 @@ const IMG='https://framemark.vam.ac.uk/collections';
 const OBJ_URL='https://collections.vam.ac.uk/item';
 const LOCAL_KEY='va_viewed_items';
 const IMPORT_TS_KEY='va_last_gmail_import';
-const PAGE_SIZE=20;
+const PAGE_SIZE=100;
 
 let state={page:1,results:null,viewedIds:new Set(),viewedDetails:{},hideViewed:false,showManage:false};
 let auth={token:null,user:null,fileId:null,syncing:false,tokenClient:null,showMenu:false};
@@ -474,11 +474,18 @@ document.addEventListener('click',()=>{if(auth.showMenu){auth.showMenu=false;ren
 // --- V&A API ---
 function imgUrl(id,s){return id?IMG+'/'+id+'/full/!'+(s||300)+','+(s||300)+'/0/default.jpg':null}
 function objUrl(sn){return OBJ_URL+'/'+sn}
-async function fetchResults(page){
-  const ct=document.getElementById('content'),pg=document.getElementById('pagination');
-  ct.innerHTML='<div class="loading"><div class="spinner"></div><span>Searching the collection\u2026</span></div>';
-  pg.style.display='none';
-  const p=new URLSearchParams({page,page_size:PAGE_SIZE,images_exist:'true',is_requestable:'true'});
+
+// Filtered mode state
+let filtered={
+  buffer:[],      // unviewed items ready to display
+  apiPage:0,      // last API page fetched
+  apiTotal:0,     // total API pages
+  totalCount:0,   // total results from API
+  loading:false,
+};
+
+function buildParams(){
+  const p=new URLSearchParams({images_exist:'true',is_requestable:'true'});
   const q=document.getElementById('searchInput').value.trim();
   const v=document.getElementById('venueFilter').value;
   const t=document.getElementById('typeFilter').value;
@@ -486,42 +493,122 @@ async function fetchResults(page){
   const yt=document.getElementById('yearTo').value;
   if(q)p.set('q',q);if(v)p.set('kw_resident_venue',v);if(t)p.set('kw_object_type',t);
   if(yf)p.set('year_made_from',yf);if(yt)p.set('year_made_to',yt);
-  try{const r=await fetch(VA_API+'?'+p);if(!r.ok)throw new Error('API error: '+r.status);
-    state.results=await r.json();state.page=page;renderResults();
+  return p;
+}
+
+// Normal mode: direct API pagination
+async function fetchResults(page){
+  const ct=document.getElementById('content'),pg=document.getElementById('pagination');
+  ct.innerHTML='<div class="loading"><div class="spinner"></div><span>Searching the collection\u2026</span></div>';
+  pg.style.display='none';
+  const p=buildParams();
+  p.set('page',page);p.set('page_size',PAGE_SIZE);
+  try{
+    const r=await fetch(VA_API+'?'+p);if(!r.ok)throw new Error('API error: '+r.status);
+    state.results=await r.json();state.page=page;
+    renderNormal();
   }catch(e){ct.innerHTML='<div class="error-msg">\u26a0 '+e.message+'</div>'}
+}
+
+// Filtered mode: over-fetch and client-side paginate
+async function fetchFiltered(virtualPage){
+  const ct=document.getElementById('content'),pg=document.getElementById('pagination');
+
+  if(virtualPage===1){
+    // Reset buffer on new search
+    filtered.buffer=[];filtered.apiPage=0;filtered.apiTotal=0;filtered.totalCount=0;
+  }
+
+  // How many items we need in total to show up to this virtual page
+  const needed=virtualPage*PAGE_SIZE;
+
+  // Fetch from API until we have enough unviewed items or run out
+  ct.innerHTML='<div class="loading"><div class="spinner"></div><span>Searching the collection\u2026</span></div>';
+  pg.style.display='none';
+  filtered.loading=true;
+
+  try{
+    while(filtered.buffer.length<needed&&(filtered.apiPage===0||filtered.apiPage<filtered.apiTotal)){
+      filtered.apiPage++;
+      const p=buildParams();
+      p.set('page',filtered.apiPage);p.set('page_size',100); // fetch in chunks
+      const r=await fetch(VA_API+'?'+p);
+      if(!r.ok)throw new Error('API error: '+r.status);
+      const data=await r.json();
+      filtered.apiTotal=data.info?.pages||0;
+      filtered.totalCount=data.info?.record_count||0;
+      const recs=data.records||[];
+      for(const rec of recs){
+        if(!state.viewedIds.has(rec.systemNumber)){
+          filtered.buffer.push(rec);
+        }
+      }
+      // Safety: if API returned 0 records, stop
+      if(recs.length===0)break;
+    }
+
+    state.page=virtualPage;
+    renderFiltered();
+  }catch(e){ct.innerHTML='<div class="error-msg">\u26a0 '+e.message+'</div>'}
+  filtered.loading=false;
 }
 
 // --- Render ---
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-function renderResults(){
+
+function renderCard(item){
+  const vi=state.viewedIds.has(item.systemNumber),im=imgUrl(item._primaryImageId,400);
+  const ti=item._primaryTitle||item.objectType||'Untitled',mk=item._primaryMaker?.name||'';
+  return '<div class="card'+(vi?' is-viewed':'')+'"><div class="card-img-wrap">'+
+    (im?'<img src="'+im+'" alt="" loading="lazy">':'<div class="no-img">No image</div>')+
+    '<button class="eye-btn'+(vi?' active':'')+'" data-sn="'+item.systemNumber+'" onclick="toggleViewed(this)">'+(vi?'\ud83d\udc41':'\u25ef')+'</button>'+
+    (vi?'<div class="viewed-banner">VIEWED</div>':'')+
+    '</div><div class="card-body"><a href="'+objUrl(item.systemNumber)+'" target="_blank" rel="noreferrer">'+esc(ti)+'</a>'+
+    (mk?'<div class="card-maker">'+esc(mk)+'</div>':'')+
+    '<div class="card-tags">'+(item._primaryDate?'<span class="tag-date">'+esc(item._primaryDate)+'</span>':'')+
+    (item.objectType?'<span class="tag-type">'+esc(item.objectType)+'</span>':'')+'</div>'+
+    '<div class="card-accession">'+esc(item.accessionNumber||'')+'</div></div></div>';
+}
+
+function renderNormal(){
   const ct=document.getElementById('content'),pg=document.getElementById('pagination');
   if(!state.results)return;
   const info=state.results.info,recs=state.results.records||[];
-  const disp=state.hideViewed?recs.filter(r=>!state.viewedIds.has(r.systemNumber)):recs;
-  const hid=recs.length-disp.length;
   document.getElementById('resultCount').textContent=(info.record_count||0).toLocaleString()+' objects found';
-  document.getElementById('hiddenNote').textContent=state.hideViewed&&hid>0?'('+hid+' hidden on this page)':'';
-  if(disp.length===0){ct.innerHTML='<div class="no-results">'+(state.hideViewed?'All items on this page have been viewed. Try the next page.':'No results found.')+'</div>';
-  }else{
-    ct.innerHTML='<div class="grid">'+disp.map(item=>{
-      const vi=state.viewedIds.has(item.systemNumber),im=imgUrl(item._primaryImageId,400);
-      const ti=item._primaryTitle||item.objectType||'Untitled',mk=item._primaryMaker?.name||'';
-      return '<div class="card'+(vi?' is-viewed':'')+'"><div class="card-img-wrap">'+
-        (im?'<img src="'+im+'" alt="" loading="lazy">':'<div class="no-img">No image</div>')+
-        '<button class="eye-btn'+(vi?' active':'')+'" data-sn="'+item.systemNumber+'" onclick="toggleViewed(this)">'+(vi?'\ud83d\udc41':'\u25ef')+'</button>'+
-        (vi?'<div class="viewed-banner">VIEWED</div>':'')+
-        '</div><div class="card-body"><a href="'+objUrl(item.systemNumber)+'" target="_blank" rel="noreferrer">'+esc(ti)+'</a>'+
-        (mk?'<div class="card-maker">'+esc(mk)+'</div>':'')+
-        '<div class="card-tags">'+(item._primaryDate?'<span class="tag-date">'+esc(item._primaryDate)+'</span>':'')+
-        (item.objectType?'<span class="tag-type">'+esc(item.objectType)+'</span>':'')+'</div>'+
-        '<div class="card-accession">'+esc(item.accessionNumber||'')+'</div></div></div>';
-    }).join('')+'</div>';
-  }
+  document.getElementById('hiddenNote').textContent='';
+  if(recs.length===0){ct.innerHTML='<div class="no-results">No results found.</div>';pg.style.display='none';return}
+  ct.innerHTML='<div class="grid">'+recs.map(renderCard).join('')+'</div>';
   const tp=info.pages||0;
   if(tp>1){pg.style.display='flex';document.getElementById('pageInfo').textContent='Page '+state.page+' of '+tp.toLocaleString();
     document.getElementById('prevBtn').disabled=state.page<=1;document.getElementById('nextBtn').disabled=state.page>=tp;
   }else pg.style.display='none';
 }
+
+function renderFiltered(){
+  const ct=document.getElementById('content'),pg=document.getElementById('pagination');
+  const start=(state.page-1)*PAGE_SIZE;
+  const pageItems=filtered.buffer.slice(start,start+PAGE_SIZE);
+  const totalFiltered=filtered.buffer.length;
+  const hasMore=filtered.apiPage<filtered.apiTotal;
+  // Estimate: if we fetched X api pages and found Y unviewed, extrapolate
+  const estTotal=hasMore?Math.round(filtered.totalCount*(totalFiltered/(filtered.apiPage*100))):totalFiltered;
+  const estPages=Math.max(1,Math.ceil(estTotal/PAGE_SIZE));
+
+  document.getElementById('resultCount').textContent='~'+estTotal.toLocaleString()+' unviewed objects';
+  document.getElementById('hiddenNote').textContent='('+state.viewedIds.size+' viewed hidden)';
+
+  if(pageItems.length===0){ct.innerHTML='<div class="no-results">No unviewed items found. Try a different search.</div>';pg.style.display='none';return}
+  ct.innerHTML='<div class="grid">'+pageItems.map(renderCard).join('')+'</div>';
+
+  const canGoNext=start+PAGE_SIZE<totalFiltered||hasMore;
+  if(estPages>1||canGoNext){
+    pg.style.display='flex';
+    document.getElementById('pageInfo').textContent='Page '+state.page+(hasMore?' of ~'+estPages.toLocaleString():' of '+Math.ceil(totalFiltered/PAGE_SIZE));
+    document.getElementById('prevBtn').disabled=state.page<=1;
+    document.getElementById('nextBtn').disabled=!canGoNext;
+  }else pg.style.display='none';
+}
+
 function renderManage(){
   const panel=document.getElementById('managePanel');
   if(!state.showManage){panel.style.display='none';return}
@@ -538,28 +625,64 @@ function renderManage(){
 function updateBadge(){document.getElementById('viewedCount').textContent=state.viewedIds.size}
 
 // --- Actions ---
+function doSearch(){
+  if(state.hideViewed)fetchFiltered(1);
+  else fetchResults(1);
+}
+
 function toggleViewed(btn){
-  const sn=btn.dataset.sn,item=state.results?.records?.find(r=>r.systemNumber===sn);
+  const sn=btn.dataset.sn;
+  // Find item in current results (normal mode) or filtered buffer
+  const item=state.results?.records?.find(r=>r.systemNumber===sn)||filtered.buffer.find(r=>r.systemNumber===sn);
   if(state.viewedIds.has(sn)){state.viewedIds.delete(sn);delete state.viewedDetails[sn]}
   else{state.viewedIds.add(sn);if(item)state.viewedDetails[sn]={title:item._primaryTitle||item.objectType||'Untitled',accession:item.accessionNumber,objectType:item.objectType,maker:item._primaryMaker?.name||'',date:item._primaryDate||'',imageId:item._primaryImageId}}
-  scheduleSync();updateBadge();renderResults();if(state.showManage)renderManage();
+  scheduleSync();updateBadge();
+  if(state.hideViewed){
+    // Remove from buffer and re-render (items shift up)
+    filtered.buffer=filtered.buffer.filter(r=>!state.viewedIds.has(r.systemNumber));
+    // If current page is now short, try to backfill
+    const start=(state.page-1)*PAGE_SIZE;
+    if(start>=filtered.buffer.length&&state.page>1){
+      state.page--;
+    }
+    // If buffer is running low and there are more API pages, fetch more in background
+    if(filtered.buffer.length-start<PAGE_SIZE&&filtered.apiPage<filtered.apiTotal){
+      fetchFiltered(state.page);
+    }else{
+      renderFiltered();
+    }
+  }else{
+    renderNormal();
+  }
+  if(state.showManage)renderManage();
 }
-function removeViewed(id){state.viewedIds.delete(id);delete state.viewedDetails[id];scheduleSync();updateBadge();renderManage();if(state.results)renderResults()}
+function removeViewed(id){state.viewedIds.delete(id);delete state.viewedDetails[id];scheduleSync();updateBadge();renderManage();
+  if(state.hideViewed)renderFiltered();else if(state.results)renderNormal();
+}
 function toggleManage(){state.showManage=!state.showManage;renderManage()}
 
 // --- Events ---
-document.getElementById('searchBtn').addEventListener('click',()=>fetchResults(1));
-document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')fetchResults(1)});
-document.getElementById('prevBtn').addEventListener('click',()=>{if(state.page>1)fetchResults(state.page-1)});
-document.getElementById('nextBtn').addEventListener('click',()=>fetchResults(state.page+1));
+document.getElementById('searchBtn').addEventListener('click',doSearch);
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch()});
+document.getElementById('prevBtn').addEventListener('click',()=>{
+  if(state.page>1){
+    if(state.hideViewed){state.page--;renderFiltered()}
+    else fetchResults(state.page-1);
+  }
+});
+document.getElementById('nextBtn').addEventListener('click',()=>{
+  if(state.hideViewed)fetchFiltered(state.page+1);
+  else fetchResults(state.page+1);
+});
 document.getElementById('viewedBadge').addEventListener('click',toggleManage);
 document.getElementById('hideToggle').addEventListener('change',function(){
   state.hideViewed=this.checked;document.getElementById('toggleTrack').classList.toggle('on',state.hideViewed);
-  if(state.results)renderResults();
+  if(state.hideViewed)fetchFiltered(1);
+  else fetchResults(1);
 });
 
 // --- Init ---
-loadLocal();updateBadge();fetchResults(1);initAuth();
+loadLocal();updateBadge();doSearch();initAuth();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
