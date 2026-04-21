@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="V&A Browser">
+<meta name="theme-color" content="#2c2520">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>V&A Collection Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0eb;
+    --surface: #ffffff;
+    --border: #e0d8cf;
+    --text: #2c2520;
+    --text2: #7a6e63;
+    --accent: #8b4513;
+    --accent-light: rgba(160,82,45,0.12);
+    --viewed: #3a7d44;
+    --viewed-bg: rgba(58,125,68,0.09);
+    --danger: #c0392b;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: var(--safe-top) 14px var(--safe-bottom);
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+  }
+  header p {
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .viewed-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--viewed-bg);
+    border: 1.5px solid rgba(58,125,68,0.25);
+    border-radius: 10px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .viewed-badge:active { background: rgba(58,125,68,0.18); }
+  .viewed-badge .count {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--viewed);
+    line-height: 1;
+  }
+  .viewed-badge .label {
+    font-size: 9px;
+    color: var(--viewed);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 1px;
+  }
+
+  /* Search Panel */
+  .search-panel {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+  .search-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .search-row input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .search-row input:focus { border-color: var(--accent); }
+  .search-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .filters-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .filters-row select, .filters-row input {
+    padding: 7px 10px;
+    font-size: 13px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    -webkit-appearance: none;
+  }
+  .filters-row select { padding-right: 24px; background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a6e63'/%3E%3C/svg%3E") no-repeat right 8px center; }
+  .year-input { width: 80px; }
+  .year-dash { color: var(--text2); font-size: 13px; }
+  .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .toggle-label input { display: none; }
+  .toggle-track {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-track.on { background: var(--viewed); }
+  .toggle-knob {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle-track.on .toggle-knob { left: 18px; }
+  .hidden-note { color: var(--viewed); font-weight: 500; }
+  .result-count { font-size: 13px; color: var(--text2); }
+
+  /* Manage Panel */
+  .manage-panel {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid rgba(58,125,68,0.25);
+    padding: 14px;
+    margin-bottom: 16px;
+    max-height: 380px;
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.2s ease;
+  }
+  .manage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .manage-header h3 { font-size: 15px; font-weight: 600; color: var(--viewed); }
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text2);
+    padding: 4px 8px;
+  }
+  .viewed-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .viewed-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--viewed-bg);
+  }
+  .viewed-list-item img {
+    width: 38px;
+    height: 38px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .viewed-list-info { flex: 1; min-width: 0; }
+  .viewed-list-info a {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .viewed-list-info .meta {
+    font-size: 10px;
+    color: var(--text2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .remove-btn {
+    background: none;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--danger);
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+  .empty-msg { font-size: 13px; color: var(--text2); }
+
+  /* Loading & Error */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px;
+    color: var(--text2);
+    font-size: 14px;
+  }
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  .error-msg {
+    padding: 12px;
+    background: rgba(192,57,43,0.08);
+    color: var(--danger);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  /* Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 500px) {
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  }
+  .card {
+    background: var(--surface);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    animation: fadeIn 0.3s ease;
+  }
+  .card.is-viewed {
+    border: 1.5px solid rgba(58,125,68,0.35);
+    background: var(--viewed-bg);
+  }
+  .card-img-wrap {
+    position: relative;
+    background: #eae4dc;
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+  .card-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .no-img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text2);
+    font-size: 12px;
+  }
+  .eye-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    cursor: pointer;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+  .eye-btn.active {
+    background: var(--viewed);
+    color: #fff;
+  }
+  .viewed-banner {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(58,125,68,0.8);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-align: center;
+    padding: 3px 0;
+  }
+  .card-body { padding: 8px 10px 12px; }
+  .card-body a {
+    font-family: 'DM Serif Display', serif;
+    font-size: 13px;
+    line-height: 1.3;
+    color: var(--text);
+    text-decoration: none;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-maker {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-tags { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+  .tag-date {
+    font-size: 10px;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .tag-type {
+    font-size: 10px;
+    color: var(--text2);
+    background: rgba(224,216,207,0.5);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .card-accession {
+    font-size: 9px;
+    color: rgba(122,110,99,0.6);
+    margin-top: 4px;
+    font-family: monospace;
+  }
+
+  /* No results */
+  .no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text2);
+    font-size: 14px;
+  }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 0 30px;
+  }
+  .page-btn {
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .page-btn:disabled { opacity: 0.35; cursor: default; }
+  .page-info { font-size: 13px; color: var(--text2); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- Header -->
+  <header>
+    <div>
+      <h1>V&A Collection</h1>
+      <p>Order an Object — Personal Browser</p>
+    </div>
+    <div class="viewed-badge" id="viewedBadge">
+      <span class="count" id="viewedCount">0</span>
+      <span class="label">viewed</span>
+    </div>
+  </header>
+
+  <!-- Search -->
+  <div class="search-panel">
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="Search the collection…">
+      <button class="search-btn" id="searchBtn">Search</button>
+    </div>
+    <div class="filters-row">
+      <select id="venueFilter">
+        <option value="">All Venues</option>
+        <option value="VA" selected>V&A South Kensington</option>
+        <option value="ES">V&A East Storehouse</option>
+      </select>
+      <select id="typeFilter">
+        <option value="">All Types</option>
+        <option>Ceramics</option><option>Drawing</option><option>Dress</option>
+        <option>Embroidery</option><option>Engraving</option><option>Etching</option>
+        <option>Furniture</option><option>Glass</option><option>Jewellery</option>
+        <option>Metalwork</option><option>Painting</option><option>Photograph</option>
+        <option>Print</option><option>Sculpture</option><option>Textile</option>
+        <option>Watercolour</option>
+      </select>
+      <input type="number" class="year-input" id="yearFrom" placeholder="Year from">
+      <span class="year-dash">–</span>
+      <input type="number" class="year-input" id="yearTo" placeholder="Year to">
+    </div>
+    <div class="toggle-row">
+      <label class="toggle-label" id="toggleLabel">
+        <input type="checkbox" id="hideToggle">
+        <div class="toggle-track" id="toggleTrack">
+          <div class="toggle-knob"></div>
+        </div>
+        <span>Hide viewed <span class="hidden-note" id="hiddenNote"></span></span>
+      </label>
+      <span class="result-count" id="resultCount"></span>
+    </div>
+  </div>
+
+  <!-- Manage Panel (hidden by default) -->
+  <div class="manage-panel" id="managePanel" style="display:none"></div>
+
+  <!-- Content area -->
+  <div id="content"></div>
+
+  <!-- Pagination -->
+  <div class="pagination" id="pagination" style="display:none">
+    <button class="page-btn" id="prevBtn">← Prev</button>
+    <span class="page-info" id="pageInfo"></span>
+    <button class="page-btn" id="nextBtn">Next →</button>
+  </div>
+</div>
+
+<script>
+const API = 'https://api.vam.ac.uk/v2/objects/search';
+const IMG = 'https://framemark.vam.ac.uk/collections';
+const OBJ_URL = 'https://collections.vam.ac.uk/item';
+const STORE_KEY = 'va_viewed_items';
+const PAGE_SIZE = 20;
+
+let state = {
+  page: 1,
+  results: null,
+  viewedIds: new Set(),
+  viewedDetails: {},
+  hideViewed: false,
+  showManage: false,
+};
+
+// ---- Storage ----
+function loadViewed() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      state.viewedIds = new Set(d.ids || []);
+      state.viewedDetails = d.details || {};
+    }
+  } catch {}
+}
+function saveViewed() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      ids: [...state.viewedIds],
+      details: state.viewedDetails,
+    }));
+  } catch {}
+}
+
+// ---- API ----
+async function fetchResults(page) {
+  const content = document.getElementById('content');
+  const pagination = document.getElementById('pagination');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div><span>Searching the collection…</span></div>';
+  pagination.style.display = 'none';
+
+  const params = new URLSearchParams({
+    page,
+    page_size: PAGE_SIZE,
+    images_exist: 'true',
+    is_requestable: 'true',
+  });
+  const q = document.getElementById('searchInput').value.trim();
+  const venue = document.getElementById('venueFilter').value;
+  const type = document.getElementById('typeFilter').value;
+  const yf = document.getElementById('yearFrom').value;
+  const yt = document.getElementById('yearTo').value;
+  if (q) params.set('q', q);
+  if (venue) params.set('kw_resident_venue', venue);
+  if (type) params.set('kw_object_type', type);
+  if (yf) params.set('year_made_from', yf);
+  if (yt) params.set('year_made_to', yt);
+
+  try {
+    const resp = await fetch(`${API}?${params}`);
+    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+    state.results = await resp.json();
+    state.page = page;
+    renderResults();
+  } catch (e) {
+    content.innerHTML = `<div class="error-msg">⚠ ${e.message}. The V&A API may be temporarily unavailable — try again in a moment.</div>`;
+  }
+}
+
+// ---- Render ----
+function imgUrl(id, size) { return id ? `${IMG}/${id}/full/!${size||300},${size||300}/0/default.jpg` : null; }
+function objUrl(sn) { return `${OBJ_URL}/${sn}`; }
+
+function renderResults() {
+  const content = document.getElementById('content');
+  const pagination = document.getElementById('pagination');
+  if (!state.results) return;
+
+  const info = state.results.info;
+  const records = state.results.records || [];
+  const display = state.hideViewed ? records.filter(r => !state.viewedIds.has(r.systemNumber)) : records;
+  const hiddenCount = records.length - display.length;
+
+  // Update counts
+  document.getElementById('resultCount').textContent = `${(info.record_count||0).toLocaleString()} objects found`;
+  document.getElementById('hiddenNote').textContent = state.hideViewed && hiddenCount > 0 ? `(${hiddenCount} hidden on this page)` : '';
+
+  if (display.length === 0) {
+    content.innerHTML = `<div class="no-results">${state.hideViewed ? 'All items on this page have been viewed. Try the next page or adjust your search.' : 'No results found. Try a different search.'}</div>`;
+  } else {
+    content.innerHTML = '<div class="grid">' + display.map(item => {
+      const v = state.viewedIds.has(item.systemNumber);
+      const img = imgUrl(item._primaryImageId, 400);
+      const title = item._primaryTitle || item.objectType || 'Untitled';
+      const maker = item._primaryMaker?.name || '';
+      return `
+        <div class="card ${v ? 'is-viewed' : ''}">
+          <div class="card-img-wrap">
+            ${img ? `<img src="${img}" alt="" loading="lazy">` : '<div class="no-img">No image</div>'}
+            <button class="eye-btn ${v ? 'active' : ''}" data-sn="${item.systemNumber}" onclick="toggleViewed(this)">
+              ${v ? '👁' : '◯'}
+            </button>
+            ${v ? '<div class="viewed-banner">VIEWED</div>' : ''}
+          </div>
+          <div class="card-body">
+            <a href="${objUrl(item.systemNumber)}" target="_blank" rel="noreferrer">${esc(title)}</a>
+            ${maker ? `<div class="card-maker">${esc(maker)}</div>` : ''}
+            <div class="card-tags">
+              ${item._primaryDate ? `<span class="tag-date">${esc(item._primaryDate)}</span>` : ''}
+              ${item.objectType ? `<span class="tag-type">${esc(item.objectType)}</span>` : ''}
+            </div>
+            <div class="card-accession">${esc(item.accessionNumber||'')}</div>
+          </div>
+        </div>`;
+    }).join('') + '</div>';
+  }
+
+  // Pagination
+  const totalPages = info.pages || 0;
+  if (totalPages > 1) {
+    pagination.style.display = 'flex';
+    document.getElementById('pageInfo').textContent = `Page ${state.page} of ${totalPages.toLocaleString()}`;
+    document.getElementById('prevBtn').disabled = state.page <= 1;
+    document.getElementById('nextBtn').disabled = state.page >= totalPages;
+  } else {
+    pagination.style.display = 'none';
+  }
+}
+
+function renderManagePanel() {
+  const panel = document.getElementById('managePanel');
+  if (!state.showManage) { panel.style.display = 'none'; return; }
+  panel.style.display = 'flex';
+
+  const ids = [...state.viewedIds];
+  if (ids.length === 0) {
+    panel.innerHTML = `
+      <div class="manage-header">
+        <h3>Viewed Items (0)</h3>
+        <button class="close-btn" onclick="toggleManage()">✕</button>
+      </div>
+      <p class="empty-msg">No items marked as viewed yet. Tap the ◯ button on any result to start tracking.</p>`;
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="manage-header">
+      <h3>Viewed Items (${ids.length})</h3>
+      <button class="close-btn" onclick="toggleManage()">✕</button>
+    </div>
+    <div class="viewed-list">
+      ${ids.map(id => {
+        const d = state.viewedDetails[id] || {};
+        const thumb = d.imageId ? imgUrl(d.imageId, 60) : '';
+        return `
+          <div class="viewed-list-item">
+            ${thumb ? `<img src="${thumb}" alt="">` : ''}
+            <div class="viewed-list-info">
+              <a href="${objUrl(id)}" target="_blank" rel="noreferrer">${esc(d.title || id)}</a>
+              <div class="meta">${[d.objectType, d.maker, d.date].filter(Boolean).join(' · ')}</div>
+            </div>
+            <button class="remove-btn" onclick="removeViewed('${id}')">✕</button>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function updateViewedBadge() {
+  document.getElementById('viewedCount').textContent = state.viewedIds.size;
+}
+
+// ---- Actions ----
+function toggleViewed(btn) {
+  const sn = btn.dataset.sn;
+  // Find item in current results
+  const item = state.results?.records?.find(r => r.systemNumber === sn);
+  if (state.viewedIds.has(sn)) {
+    state.viewedIds.delete(sn);
+    delete state.viewedDetails[sn];
+  } else {
+    state.viewedIds.add(sn);
+    if (item) {
+      state.viewedDetails[sn] = {
+        title: item._primaryTitle || item.objectType || 'Untitled',
+        accession: item.accessionNumber,
+        objectType: item.objectType,
+        maker: item._primaryMaker?.name || '',
+        date: item._primaryDate || '',
+        imageId: item._primaryImageId,
+      };
+    }
+  }
+  saveViewed();
+  updateViewedBadge();
+  renderResults();
+  if (state.showManage) renderManagePanel();
+}
+
+function removeViewed(id) {
+  state.viewedIds.delete(id);
+  delete state.viewedDetails[id];
+  saveViewed();
+  updateViewedBadge();
+  renderManagePanel();
+  if (state.results) renderResults();
+}
+
+function toggleManage() {
+  state.showManage = !state.showManage;
+  renderManagePanel();
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ---- Events ----
+document.getElementById('searchBtn').addEventListener('click', () => fetchResults(1));
+document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchResults(1); });
+document.getElementById('prevBtn').addEventListener('click', () => { if (state.page > 1) fetchResults(state.page - 1); });
+document.getElementById('nextBtn').addEventListener('click', () => fetchResults(state.page + 1));
+document.getElementById('viewedBadge').addEventListener('click', toggleManage);
+document.getElementById('hideToggle').addEventListener('change', function() {
+  state.hideViewed = this.checked;
+  document.getElementById('toggleTrack').classList.toggle('on', state.hideViewed);
+  if (state.results) renderResults();
+});
+
+// ---- Init ----
+loadViewed();
+updateViewedBadge();
+fetchResults(1);
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
