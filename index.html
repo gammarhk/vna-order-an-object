@@ -9,460 +9,112 @@
 <meta name="theme-color" content="#2c2520">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>V&A Collection Browser</title>
+<title>V&amp;A Collection Browser</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #f5f0eb;
-    --surface: #ffffff;
-    --border: #e0d8cf;
-    --text: #2c2520;
-    --text2: #7a6e63;
-    --accent: #8b4513;
-    --accent-light: rgba(160,82,45,0.12);
-    --viewed: #3a7d44;
-    --viewed-bg: rgba(58,125,68,0.09);
-    --danger: #c0392b;
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'DM Sans', -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-  }
-  .app {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: var(--safe-top) 14px var(--safe-bottom);
-  }
-
-  /* Header */
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 0 14px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 16px;
-  }
-  header h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 24px;
-    letter-spacing: -0.02em;
-  }
-  header p {
-    font-size: 11px;
-    color: var(--text2);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    margin-top: 2px;
-  }
-  .viewed-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: var(--viewed-bg);
-    border: 1.5px solid rgba(58,125,68,0.25);
-    border-radius: 10px;
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: background 0.2s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .viewed-badge:active { background: rgba(58,125,68,0.18); }
-  .viewed-badge .count {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--viewed);
-    line-height: 1;
-  }
-  .viewed-badge .label {
-    font-size: 9px;
-    color: var(--viewed);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-top: 1px;
-  }
-
-  /* Search Panel */
-  .search-panel {
-    background: var(--surface);
-    border-radius: 12px;
-    padding: 14px;
-    margin-bottom: 16px;
-    border: 1px solid var(--border);
-  }
-  .search-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .search-row input {
-    flex: 1;
-    padding: 10px 12px;
-    font-size: 15px;
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
-    outline: none;
-    -webkit-appearance: none;
-  }
-  .search-row input:focus { border-color: var(--accent); }
-  .search-btn {
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .filters-row {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .filters-row select, .filters-row input {
-    padding: 7px 10px;
-    font-size: 13px;
-    border: 1.5px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
-    color: var(--text);
-    -webkit-appearance: none;
-  }
-  .filters-row select { padding-right: 24px; background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a6e63'/%3E%3C/svg%3E") no-repeat right 8px center; }
-  .year-input { width: 80px; }
-  .year-dash { color: var(--text2); font-size: 13px; }
-  .toggle-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .toggle-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-  }
-  .toggle-label input { display: none; }
-  .toggle-track {
-    width: 36px;
-    height: 20px;
-    border-radius: 10px;
-    background: var(--border);
-    position: relative;
-    transition: background 0.2s;
-    flex-shrink: 0;
-  }
-  .toggle-track.on { background: var(--viewed); }
-  .toggle-knob {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #fff;
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    transition: left 0.2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  }
-  .toggle-track.on .toggle-knob { left: 18px; }
-  .hidden-note { color: var(--viewed); font-weight: 500; }
-  .result-count { font-size: 13px; color: var(--text2); }
-
-  /* Manage Panel */
-  .manage-panel {
-    background: var(--surface);
-    border-radius: 12px;
-    border: 1px solid rgba(58,125,68,0.25);
-    padding: 14px;
-    margin-bottom: 16px;
-    max-height: 380px;
-    display: flex;
-    flex-direction: column;
-    animation: fadeIn 0.2s ease;
-  }
-  .manage-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .manage-header h3 { font-size: 15px; font-weight: 600; color: var(--viewed); }
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    color: var(--text2);
-    padding: 4px 8px;
-  }
-  .viewed-list {
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .viewed-list-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    border-radius: 8px;
-    background: var(--viewed-bg);
-  }
-  .viewed-list-item img {
-    width: 38px;
-    height: 38px;
-    object-fit: cover;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-  .viewed-list-info { flex: 1; min-width: 0; }
-  .viewed-list-info a {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text);
-    text-decoration: none;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .viewed-list-info .meta {
-    font-size: 10px;
-    color: var(--text2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .remove-btn {
-    background: none;
-    border: none;
-    font-size: 14px;
-    cursor: pointer;
-    color: var(--danger);
-    padding: 4px 8px;
-    flex-shrink: 0;
-  }
-  .empty-msg { font-size: 13px; color: var(--text2); }
-
-  /* Loading & Error */
-  .loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 40px;
-    color: var(--text2);
-    font-size: 14px;
-  }
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border: 2.5px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  .error-msg {
-    padding: 12px;
-    background: rgba(192,57,43,0.08);
-    color: var(--danger);
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 13px;
-  }
-
-  /* Grid */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 14px;
-  }
-  @media (max-width: 500px) {
-    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  }
-  .card {
-    background: var(--surface);
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    animation: fadeIn 0.3s ease;
-  }
-  .card.is-viewed {
-    border: 1.5px solid rgba(58,125,68,0.35);
-    background: var(--viewed-bg);
-  }
-  .card-img-wrap {
-    position: relative;
-    background: #eae4dc;
-    aspect-ratio: 1;
-    overflow: hidden;
-  }
-  .card-img-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .no-img {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text2);
-    font-size: 12px;
-  }
-  .eye-btn {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(255,255,255,0.85);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    cursor: pointer;
-    font-size: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s;
-  }
-  .eye-btn.active {
-    background: var(--viewed);
-    color: #fff;
-  }
-  .viewed-banner {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(58,125,68,0.8);
-    color: #fff;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-align: center;
-    padding: 3px 0;
-  }
-  .card-body { padding: 8px 10px 12px; }
-  .card-body a {
-    font-family: 'DM Serif Display', serif;
-    font-size: 13px;
-    line-height: 1.3;
-    color: var(--text);
-    text-decoration: none;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .card-maker {
-    font-size: 11px;
-    color: var(--text2);
-    margin-top: 3px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .card-tags { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
-  .tag-date {
-    font-size: 10px;
-    color: var(--accent);
-    background: var(--accent-light);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-weight: 500;
-  }
-  .tag-type {
-    font-size: 10px;
-    color: var(--text2);
-    background: rgba(224,216,207,0.5);
-    padding: 2px 6px;
-    border-radius: 3px;
-  }
-  .card-accession {
-    font-size: 9px;
-    color: rgba(122,110,99,0.6);
-    margin-top: 4px;
-    font-family: monospace;
-  }
-
-  /* No results */
-  .no-results {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text2);
-    font-size: 14px;
-  }
-
-  /* Pagination */
-  .pagination {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 14px;
-    padding: 20px 0 30px;
-  }
-  .page-btn {
-    padding: 8px 18px;
-    font-size: 13px;
-    font-weight: 600;
-    background: var(--surface);
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    color: var(--text);
-    -webkit-tap-highlight-color: transparent;
-  }
-  .page-btn:disabled { opacity: 0.35; cursor: default; }
-  .page-info { font-size: 13px; color: var(--text2); }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+:root{--bg:#f5f0eb;--surface:#fff;--border:#e0d8cf;--text:#2c2520;--text2:#7a6e63;--accent:#8b4513;--accent-light:rgba(160,82,45,.12);--viewed:#3a7d44;--viewed-bg:rgba(58,125,68,.09);--danger:#c0392b;--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+.app{max-width:960px;margin:0 auto;padding:var(--safe-top) 14px var(--safe-bottom)}
+header{display:flex;justify-content:space-between;align-items:center;padding:20px 0 14px;border-bottom:1px solid var(--border);margin-bottom:16px;gap:10px}
+header h1{font-family:'DM Serif Display',serif;font-size:24px;letter-spacing:-.02em}
+header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+.header-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sync-bar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0}
+.sync-dot.signed-in{background:var(--viewed)}
+.sync-dot.syncing{background:#e67e22;animation:pulse 1s infinite}
+.sync-dot.error{background:var(--danger)}
+.sign-in-btn{padding:6px 14px;font-size:12px;font-weight:600;background:var(--surface);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--text);display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.sign-in-btn:hover{background:var(--bg)}
+.sign-in-btn .g-icon{width:14px;height:14px}
+.user-info{display:flex;align-items:center;gap:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative}
+.user-avatar{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border)}
+.user-menu{position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;min-width:140px}
+.user-menu button{display:block;width:100%;text-align:left;padding:8px 10px;font-size:12px;background:none;border:none;cursor:pointer;border-radius:4px;font-family:'DM Sans',sans-serif;color:var(--text)}
+.user-menu button:hover{background:var(--bg)}
+.viewed-badge{display:flex;flex-direction:column;align-items:center;background:var(--viewed-bg);border:1.5px solid rgba(58,125,68,.25);border-radius:10px;padding:6px 14px;cursor:pointer;transition:background .2s;-webkit-tap-highlight-color:transparent}
+.viewed-badge:active{background:rgba(58,125,68,.18)}
+.viewed-badge .count{font-size:20px;font-weight:700;color:var(--viewed);line-height:1}
+.viewed-badge .label{font-size:9px;color:var(--viewed);text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+.search-panel{background:var(--surface);border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid var(--border)}
+.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-row input{flex:1;padding:10px 12px;font-size:15px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);font-family:'DM Sans',sans-serif;outline:none;-webkit-appearance:none}
+.search-row input:focus{border-color:var(--accent)}
+.search-btn{padding:10px 20px;font-size:14px;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent}
+.filters-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.filters-row select,.filters-row input{padding:7px 10px;font-size:13px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);-webkit-appearance:none}
+.filters-row select{padding-right:24px;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a6e63'/%3E%3C/svg%3E") no-repeat right 8px center}
+.year-input{width:80px}
+.year-dash{color:var(--text2);font-size:13px}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.toggle-label{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+.toggle-label input{display:none}
+.toggle-track{width:36px;height:20px;border-radius:10px;background:var(--border);position:relative;transition:background .2s;flex-shrink:0}
+.toggle-track.on{background:var(--viewed)}
+.toggle-knob{width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle-track.on .toggle-knob{left:18px}
+.hidden-note{color:var(--viewed);font-weight:500}
+.result-count{font-size:13px;color:var(--text2)}
+.manage-panel{background:var(--surface);border-radius:12px;border:1px solid rgba(58,125,68,.25);padding:14px;margin-bottom:16px;max-height:380px;display:flex;flex-direction:column;animation:fadeIn .2s ease}
+.manage-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.manage-header h3{font-size:15px;font-weight:600;color:var(--viewed)}
+.close-btn{background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);padding:4px 8px}
+.viewed-list{overflow-y:auto;display:flex;flex-direction:column;gap:5px;-webkit-overflow-scrolling:touch}
+.viewed-list-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;background:var(--viewed-bg)}
+.viewed-list-item img{width:38px;height:38px;object-fit:cover;border-radius:4px;flex-shrink:0}
+.viewed-list-info{flex:1;min-width:0}
+.viewed-list-info a{font-size:12px;font-weight:500;color:var(--text);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viewed-list-info .meta{font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.remove-btn{background:none;border:none;font-size:14px;cursor:pointer;color:var(--danger);padding:4px 8px;flex-shrink:0}
+.empty-msg{font-size:13px;color:var(--text2)}
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--text2);font-size:14px}
+.spinner{width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.error-msg{padding:12px;background:rgba(192,57,43,.08);color:var(--danger);border-radius:8px;margin-bottom:16px;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+@media(max-width:500px){.grid{grid-template-columns:repeat(2,1fr);gap:10px}}
+.card{background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border);animation:fadeIn .3s ease}
+.card.is-viewed{border:1.5px solid rgba(58,125,68,.35);background:var(--viewed-bg)}
+.card-img-wrap{position:relative;background:#eae4dc;aspect-ratio:1;overflow:hidden}
+.card-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.no-img{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text2);font-size:12px}
+.eye-btn{position:absolute;top:6px;right:6px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,.85);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);-webkit-tap-highlight-color:transparent;transition:background .15s}
+.eye-btn.active{background:var(--viewed);color:#fff}
+.viewed-banner{position:absolute;bottom:0;left:0;right:0;background:rgba(58,125,68,.8);color:#fff;font-size:9px;font-weight:700;letter-spacing:.12em;text-align:center;padding:3px 0}
+.card-body{padding:8px 10px 12px}
+.card-body a{font-family:'DM Serif Display',serif;font-size:13px;line-height:1.3;color:var(--text);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-maker{font-size:11px;color:var(--text2);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-tags{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.tag-date{font-size:10px;color:var(--accent);background:var(--accent-light);padding:2px 6px;border-radius:3px;font-weight:500}
+.tag-type{font-size:10px;color:var(--text2);background:rgba(224,216,207,.5);padding:2px 6px;border-radius:3px}
+.card-accession{font-size:9px;color:rgba(122,110,99,.6);margin-top:4px;font-family:monospace}
+.no-results{text-align:center;padding:40px 20px;color:var(--text2);font-size:14px}
+.pagination{display:flex;justify-content:center;align-items:center;gap:14px;padding:20px 0 30px}
+.page-btn{padding:8px 18px;font-size:13px;font-weight:600;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--text);-webkit-tap-highlight-color:transparent}
+.page-btn:disabled{opacity:.35;cursor:default}
+.page-info{font-size:13px;color:var(--text2)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
 <body>
 <div class="app" id="app">
-  <!-- Header -->
   <header>
     <div>
-      <h1>V&A Collection</h1>
+      <h1>V&amp;A Collection</h1>
       <p>Order an Object — Personal Browser</p>
     </div>
-    <div class="viewed-badge" id="viewedBadge">
-      <span class="count" id="viewedCount">0</span>
-      <span class="label">viewed</span>
+    <div class="header-right">
+      <div id="authArea"></div>
+      <div class="viewed-badge" id="viewedBadge">
+        <span class="count" id="viewedCount">0</span>
+        <span class="label">viewed</span>
+      </div>
     </div>
   </header>
 
-  <!-- Search -->
   <div class="search-panel">
     <div class="search-row">
       <input type="text" id="searchInput" placeholder="Search the collection…">
@@ -471,8 +123,8 @@
     <div class="filters-row">
       <select id="venueFilter">
         <option value="">All Venues</option>
-        <option value="VA" selected>V&A South Kensington</option>
-        <option value="ES">V&A East Storehouse</option>
+        <option value="VA" selected>V&amp;A South Kensington</option>
+        <option value="ES">V&amp;A East Storehouse</option>
       </select>
       <select id="typeFilter">
         <option value="">All Types</option>
@@ -488,272 +140,231 @@
       <input type="number" class="year-input" id="yearTo" placeholder="Year to">
     </div>
     <div class="toggle-row">
-      <label class="toggle-label" id="toggleLabel">
+      <label class="toggle-label">
         <input type="checkbox" id="hideToggle">
-        <div class="toggle-track" id="toggleTrack">
-          <div class="toggle-knob"></div>
-        </div>
+        <div class="toggle-track" id="toggleTrack"><div class="toggle-knob"></div></div>
         <span>Hide viewed <span class="hidden-note" id="hiddenNote"></span></span>
       </label>
       <span class="result-count" id="resultCount"></span>
     </div>
   </div>
 
-  <!-- Manage Panel (hidden by default) -->
   <div class="manage-panel" id="managePanel" style="display:none"></div>
-
-  <!-- Content area -->
   <div id="content"></div>
-
-  <!-- Pagination -->
   <div class="pagination" id="pagination" style="display:none">
-    <button class="page-btn" id="prevBtn">← Prev</button>
+    <button class="page-btn" id="prevBtn">&larr; Prev</button>
     <span class="page-info" id="pageInfo"></span>
-    <button class="page-btn" id="nextBtn">Next →</button>
+    <button class="page-btn" id="nextBtn">Next &rarr;</button>
   </div>
 </div>
 
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-const API = 'https://api.vam.ac.uk/v2/objects/search';
-const IMG = 'https://framemark.vam.ac.uk/collections';
-const OBJ_URL = 'https://collections.vam.ac.uk/item';
-const STORE_KEY = 'va_viewed_items';
-const PAGE_SIZE = 20;
+const CLIENT_ID='254726805331-s8n400uimdiqioij2m3v0h22523csr11.apps.googleusercontent.com';
+const SCOPES='https://www.googleapis.com/auth/drive.appdata';
+const DRIVE_FILE='va_viewed_items.json';
+const API='https://api.vam.ac.uk/v2/objects/search';
+const IMG='https://framemark.vam.ac.uk/collections';
+const OBJ_URL='https://collections.vam.ac.uk/item';
+const LOCAL_KEY='va_viewed_items';
+const PAGE_SIZE=20;
 
-let state = {
-  page: 1,
-  results: null,
-  viewedIds: new Set(),
-  viewedDetails: {},
-  hideViewed: false,
-  showManage: false,
-};
+let state={page:1,results:null,viewedIds:new Set(),viewedDetails:{},hideViewed:false,showManage:false};
+let auth={token:null,user:null,fileId:null,syncing:false,tokenClient:null,showMenu:false};
 
-// ---- Storage ----
-function loadViewed() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const d = JSON.parse(raw);
-      state.viewedIds = new Set(d.ids || []);
-      state.viewedDetails = d.details || {};
+// --- Local storage (offline cache) ---
+function loadLocal(){try{const r=localStorage.getItem(LOCAL_KEY);if(r){const d=JSON.parse(r);state.viewedIds=new Set(d.ids||[]);state.viewedDetails=d.details||{}}}catch{}}
+function saveLocal(){try{localStorage.setItem(LOCAL_KEY,JSON.stringify({ids:[...state.viewedIds],details:state.viewedDetails}))}catch{}}
+
+// --- Google Drive ---
+async function driveReq(url,opts={}){
+  const r=await fetch(url,{...opts,headers:{Authorization:'Bearer '+auth.token,...(opts.headers||{})}});
+  if(!r.ok)throw new Error('Drive '+r.status);
+  return r;
+}
+async function findFile(){
+  const r=await driveReq("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D'"+DRIVE_FILE+"'&fields=files(id)&pageSize=1");
+  const d=await r.json();return d.files?.[0]||null;
+}
+async function readFile(id){const r=await driveReq("https://www.googleapis.com/drive/v3/files/"+id+"?alt=media");return r.json()}
+async function writeFile(content){
+  const body=JSON.stringify(content);
+  if(auth.fileId){
+    await driveReq("https://www.googleapis.com/upload/drive/v3/files/"+auth.fileId+"?uploadType=media",
+      {method:'PATCH',headers:{'Content-Type':'application/json'},body});
+  }else{
+    const meta={name:DRIVE_FILE,parents:['appDataFolder']};
+    const form=new FormData();
+    form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
+    form.append('file',new Blob([body],{type:'application/json'}));
+    const r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      {method:'POST',headers:{Authorization:'Bearer '+auth.token},body:form});
+    if(!r.ok)throw new Error('Create failed');
+    const d=await r.json();auth.fileId=d.id;
+  }
+}
+async function syncFrom(){
+  if(!auth.token)return;
+  setSyncSt('syncing');
+  try{
+    const f=await findFile();
+    if(f){
+      auth.fileId=f.id;
+      const data=await readFile(f.id);
+      const dIds=new Set(data.ids||[]);const dDet=data.details||{};
+      let added=false;
+      for(const id of state.viewedIds){if(!dIds.has(id)){dIds.add(id);dDet[id]=state.viewedDetails[id];added=true}}
+      state.viewedIds=dIds;state.viewedDetails=dDet;saveLocal();
+      if(added)await writeFile({ids:[...state.viewedIds],details:state.viewedDetails});
+    }else if(state.viewedIds.size>0){
+      await writeFile({ids:[...state.viewedIds],details:state.viewedDetails});
     }
-  } catch {}
+    setSyncSt('signed-in');updateBadge();
+    if(state.results)renderResults();if(state.showManage)renderManage();
+  }catch(e){console.error('Sync error:',e);setSyncSt('error')}
 }
-function saveViewed() {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({
-      ids: [...state.viewedIds],
-      details: state.viewedDetails,
-    }));
-  } catch {}
+async function syncTo(){
+  saveLocal();if(!auth.token)return;
+  setSyncSt('syncing');
+  try{await writeFile({ids:[...state.viewedIds],details:state.viewedDetails});setSyncSt('signed-in')}
+  catch(e){console.error('Write error:',e);setSyncSt('error')}
 }
+let syncTimer=null;
+function scheduleSync(){saveLocal();if(!auth.token)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncTo(),1500)}
 
-// ---- API ----
-async function fetchResults(page) {
-  const content = document.getElementById('content');
-  const pagination = document.getElementById('pagination');
-  content.innerHTML = '<div class="loading"><div class="spinner"></div><span>Searching the collection…</span></div>';
-  pagination.style.display = 'none';
-
-  const params = new URLSearchParams({
-    page,
-    page_size: PAGE_SIZE,
-    images_exist: 'true',
-    is_requestable: 'true',
-  });
-  const q = document.getElementById('searchInput').value.trim();
-  const venue = document.getElementById('venueFilter').value;
-  const type = document.getElementById('typeFilter').value;
-  const yf = document.getElementById('yearFrom').value;
-  const yt = document.getElementById('yearTo').value;
-  if (q) params.set('q', q);
-  if (venue) params.set('kw_resident_venue', venue);
-  if (type) params.set('kw_object_type', type);
-  if (yf) params.set('year_made_from', yf);
-  if (yt) params.set('year_made_to', yt);
-
-  try {
-    const resp = await fetch(`${API}?${params}`);
-    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
-    state.results = await resp.json();
-    state.page = page;
-    renderResults();
-  } catch (e) {
-    content.innerHTML = `<div class="error-msg">⚠ ${e.message}. The V&A API may be temporarily unavailable — try again in a moment.</div>`;
+// --- Auth UI ---
+function setSyncSt(s){auth.syncing=s==='syncing';renderAuth()}
+function renderAuth(){
+  const a=document.getElementById('authArea');
+  if(!auth.token){
+    a.innerHTML='<button class="sign-in-btn" id="signInBtn"><svg class="g-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Sign in</button>';
+    document.getElementById('signInBtn').addEventListener('click',()=>{if(auth.tokenClient)auth.tokenClient.requestAccessToken()});
+  }else{
+    const sc=auth.syncing?'syncing':'signed-in';
+    const st=auth.syncing?'Syncing\u2026':'Synced';
+    const n=auth.user?.name||'User';const p=auth.user?.picture||'';
+    a.innerHTML='<div class="sync-bar"><div class="sync-dot '+sc+'"></div><span>'+st+'</span></div>'+
+      '<div class="user-info" id="userInfo">'+
+      (p?'<img class="user-avatar" src="'+p+'" alt="">':'<div class="user-avatar" style="background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;">'+n[0]+'</div>')+
+      (auth.showMenu?'<div class="user-menu"><button id="signOutBtn">Sign out</button></div>':'')+
+      '</div>';
+    document.getElementById('userInfo').addEventListener('click',e=>{e.stopPropagation();auth.showMenu=!auth.showMenu;renderAuth()});
+    if(auth.showMenu){const b=document.getElementById('signOutBtn');if(b)b.addEventListener('click',signOut)}
   }
 }
-
-// ---- Render ----
-function imgUrl(id, size) { return id ? `${IMG}/${id}/full/!${size||300},${size||300}/0/default.jpg` : null; }
-function objUrl(sn) { return `${OBJ_URL}/${sn}`; }
-
-function renderResults() {
-  const content = document.getElementById('content');
-  const pagination = document.getElementById('pagination');
-  if (!state.results) return;
-
-  const info = state.results.info;
-  const records = state.results.records || [];
-  const display = state.hideViewed ? records.filter(r => !state.viewedIds.has(r.systemNumber)) : records;
-  const hiddenCount = records.length - display.length;
-
-  // Update counts
-  document.getElementById('resultCount').textContent = `${(info.record_count||0).toLocaleString()} objects found`;
-  document.getElementById('hiddenNote').textContent = state.hideViewed && hiddenCount > 0 ? `(${hiddenCount} hidden on this page)` : '';
-
-  if (display.length === 0) {
-    content.innerHTML = `<div class="no-results">${state.hideViewed ? 'All items on this page have been viewed. Try the next page or adjust your search.' : 'No results found. Try a different search.'}</div>`;
-  } else {
-    content.innerHTML = '<div class="grid">' + display.map(item => {
-      const v = state.viewedIds.has(item.systemNumber);
-      const img = imgUrl(item._primaryImageId, 400);
-      const title = item._primaryTitle || item.objectType || 'Untitled';
-      const maker = item._primaryMaker?.name || '';
-      return `
-        <div class="card ${v ? 'is-viewed' : ''}">
-          <div class="card-img-wrap">
-            ${img ? `<img src="${img}" alt="" loading="lazy">` : '<div class="no-img">No image</div>'}
-            <button class="eye-btn ${v ? 'active' : ''}" data-sn="${item.systemNumber}" onclick="toggleViewed(this)">
-              ${v ? '👁' : '◯'}
-            </button>
-            ${v ? '<div class="viewed-banner">VIEWED</div>' : ''}
-          </div>
-          <div class="card-body">
-            <a href="${objUrl(item.systemNumber)}" target="_blank" rel="noreferrer">${esc(title)}</a>
-            ${maker ? `<div class="card-maker">${esc(maker)}</div>` : ''}
-            <div class="card-tags">
-              ${item._primaryDate ? `<span class="tag-date">${esc(item._primaryDate)}</span>` : ''}
-              ${item.objectType ? `<span class="tag-type">${esc(item.objectType)}</span>` : ''}
-            </div>
-            <div class="card-accession">${esc(item.accessionNumber||'')}</div>
-          </div>
-        </div>`;
-    }).join('') + '</div>';
-  }
-
-  // Pagination
-  const totalPages = info.pages || 0;
-  if (totalPages > 1) {
-    pagination.style.display = 'flex';
-    document.getElementById('pageInfo').textContent = `Page ${state.page} of ${totalPages.toLocaleString()}`;
-    document.getElementById('prevBtn').disabled = state.page <= 1;
-    document.getElementById('nextBtn').disabled = state.page >= totalPages;
-  } else {
-    pagination.style.display = 'none';
-  }
+function signOut(){
+  if(auth.token)google.accounts.oauth2.revoke(auth.token,()=>{});
+  auth.token=null;auth.user=null;auth.fileId=null;auth.showMenu=false;renderAuth();
 }
-
-function renderManagePanel() {
-  const panel = document.getElementById('managePanel');
-  if (!state.showManage) { panel.style.display = 'none'; return; }
-  panel.style.display = 'flex';
-
-  const ids = [...state.viewedIds];
-  if (ids.length === 0) {
-    panel.innerHTML = `
-      <div class="manage-header">
-        <h3>Viewed Items (0)</h3>
-        <button class="close-btn" onclick="toggleManage()">✕</button>
-      </div>
-      <p class="empty-msg">No items marked as viewed yet. Tap the ◯ button on any result to start tracking.</p>`;
-    return;
-  }
-
-  panel.innerHTML = `
-    <div class="manage-header">
-      <h3>Viewed Items (${ids.length})</h3>
-      <button class="close-btn" onclick="toggleManage()">✕</button>
-    </div>
-    <div class="viewed-list">
-      ${ids.map(id => {
-        const d = state.viewedDetails[id] || {};
-        const thumb = d.imageId ? imgUrl(d.imageId, 60) : '';
-        return `
-          <div class="viewed-list-item">
-            ${thumb ? `<img src="${thumb}" alt="">` : ''}
-            <div class="viewed-list-info">
-              <a href="${objUrl(id)}" target="_blank" rel="noreferrer">${esc(d.title || id)}</a>
-              <div class="meta">${[d.objectType, d.maker, d.date].filter(Boolean).join(' · ')}</div>
-            </div>
-            <button class="remove-btn" onclick="removeViewed('${id}')">✕</button>
-          </div>`;
-      }).join('')}
-    </div>`;
+async function fetchUser(){
+  try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+auth.token}});
+  if(r.ok)auth.user=await r.json()}catch{}
 }
-
-function updateViewedBadge() {
-  document.getElementById('viewedCount').textContent = state.viewedIds.size;
-}
-
-// ---- Actions ----
-function toggleViewed(btn) {
-  const sn = btn.dataset.sn;
-  // Find item in current results
-  const item = state.results?.records?.find(r => r.systemNumber === sn);
-  if (state.viewedIds.has(sn)) {
-    state.viewedIds.delete(sn);
-    delete state.viewedDetails[sn];
-  } else {
-    state.viewedIds.add(sn);
-    if (item) {
-      state.viewedDetails[sn] = {
-        title: item._primaryTitle || item.objectType || 'Untitled',
-        accession: item.accessionNumber,
-        objectType: item.objectType,
-        maker: item._primaryMaker?.name || '',
-        date: item._primaryDate || '',
-        imageId: item._primaryImageId,
-      };
+function initAuth(){
+  const iv=setInterval(()=>{
+    if(typeof google!=='undefined'&&google.accounts){
+      clearInterval(iv);
+      auth.tokenClient=google.accounts.oauth2.initTokenClient({
+        client_id:CLIENT_ID,
+        scope:SCOPES+' https://www.googleapis.com/auth/userinfo.profile',
+        callback:async(resp)=>{if(resp.access_token){auth.token=resp.access_token;await fetchUser();renderAuth();syncFrom()}}
+      });
+      renderAuth();
     }
+  },100);
+}
+document.addEventListener('click',()=>{if(auth.showMenu){auth.showMenu=false;renderAuth()}});
+
+// --- V&A API ---
+function imgUrl(id,s){return id?IMG+'/'+id+'/full/!'+(s||300)+','+(s||300)+'/0/default.jpg':null}
+function objUrl(sn){return OBJ_URL+'/'+sn}
+async function fetchResults(page){
+  const ct=document.getElementById('content'),pg=document.getElementById('pagination');
+  ct.innerHTML='<div class="loading"><div class="spinner"></div><span>Searching the collection\u2026</span></div>';
+  pg.style.display='none';
+  const p=new URLSearchParams({page,page_size:PAGE_SIZE,images_exist:'true',is_requestable:'true'});
+  const q=document.getElementById('searchInput').value.trim();
+  const v=document.getElementById('venueFilter').value;
+  const t=document.getElementById('typeFilter').value;
+  const yf=document.getElementById('yearFrom').value;
+  const yt=document.getElementById('yearTo').value;
+  if(q)p.set('q',q);if(v)p.set('kw_resident_venue',v);if(t)p.set('kw_object_type',t);
+  if(yf)p.set('year_made_from',yf);if(yt)p.set('year_made_to',yt);
+  try{const r=await fetch(API+'?'+p);if(!r.ok)throw new Error('API error: '+r.status);
+    state.results=await r.json();state.page=page;renderResults();
+  }catch(e){ct.innerHTML='<div class="error-msg">\u26a0 '+e.message+'</div>'}
+}
+
+// --- Render ---
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function renderResults(){
+  const ct=document.getElementById('content'),pg=document.getElementById('pagination');
+  if(!state.results)return;
+  const info=state.results.info,recs=state.results.records||[];
+  const disp=state.hideViewed?recs.filter(r=>!state.viewedIds.has(r.systemNumber)):recs;
+  const hid=recs.length-disp.length;
+  document.getElementById('resultCount').textContent=(info.record_count||0).toLocaleString()+' objects found';
+  document.getElementById('hiddenNote').textContent=state.hideViewed&&hid>0?'('+hid+' hidden on this page)':'';
+  if(disp.length===0){ct.innerHTML='<div class="no-results">'+(state.hideViewed?'All items on this page have been viewed. Try the next page.':'No results found.')+'</div>';
+  }else{
+    ct.innerHTML='<div class="grid">'+disp.map(item=>{
+      const vi=state.viewedIds.has(item.systemNumber),im=imgUrl(item._primaryImageId,400);
+      const ti=item._primaryTitle||item.objectType||'Untitled',mk=item._primaryMaker?.name||'';
+      return '<div class="card'+(vi?' is-viewed':'')+'"><div class="card-img-wrap">'+
+        (im?'<img src="'+im+'" alt="" loading="lazy">':'<div class="no-img">No image</div>')+
+        '<button class="eye-btn'+(vi?' active':'')+'" data-sn="'+item.systemNumber+'" onclick="toggleViewed(this)">'+(vi?'\ud83d\udc41':'\u25ef')+'</button>'+
+        (vi?'<div class="viewed-banner">VIEWED</div>':'')+
+        '</div><div class="card-body"><a href="'+objUrl(item.systemNumber)+'" target="_blank" rel="noreferrer">'+esc(ti)+'</a>'+
+        (mk?'<div class="card-maker">'+esc(mk)+'</div>':'')+
+        '<div class="card-tags">'+(item._primaryDate?'<span class="tag-date">'+esc(item._primaryDate)+'</span>':'')+
+        (item.objectType?'<span class="tag-type">'+esc(item.objectType)+'</span>':'')+'</div>'+
+        '<div class="card-accession">'+esc(item.accessionNumber||'')+'</div></div></div>';
+    }).join('')+'</div>';
   }
-  saveViewed();
-  updateViewedBadge();
-  renderResults();
-  if (state.showManage) renderManagePanel();
+  const tp=info.pages||0;
+  if(tp>1){pg.style.display='flex';document.getElementById('pageInfo').textContent='Page '+state.page+' of '+tp.toLocaleString();
+    document.getElementById('prevBtn').disabled=state.page<=1;document.getElementById('nextBtn').disabled=state.page>=tp;
+  }else pg.style.display='none';
 }
-
-function removeViewed(id) {
-  state.viewedIds.delete(id);
-  delete state.viewedDetails[id];
-  saveViewed();
-  updateViewedBadge();
-  renderManagePanel();
-  if (state.results) renderResults();
+function renderManage(){
+  const panel=document.getElementById('managePanel');
+  if(!state.showManage){panel.style.display='none';return}
+  panel.style.display='flex';
+  const ids=[...state.viewedIds];
+  if(!ids.length){panel.innerHTML='<div class="manage-header"><h3>Viewed Items (0)</h3><button class="close-btn" onclick="toggleManage()">\u2715</button></div><p class="empty-msg">No items marked yet. Tap \u25ef on any result.</p>';return}
+  panel.innerHTML='<div class="manage-header"><h3>Viewed Items ('+ids.length+')</h3><button class="close-btn" onclick="toggleManage()">\u2715</button></div><div class="viewed-list">'+
+    ids.map(id=>{const d=state.viewedDetails[id]||{};const th=d.imageId?imgUrl(d.imageId,60):'';
+      return '<div class="viewed-list-item">'+(th?'<img src="'+th+'" alt="">':'')+
+        '<div class="viewed-list-info"><a href="'+objUrl(id)+'" target="_blank" rel="noreferrer">'+esc(d.title||id)+'</a>'+
+        '<div class="meta">'+[d.objectType,d.maker,d.date].filter(Boolean).join(' \xb7 ')+'</div></div>'+
+        '<button class="remove-btn" onclick="removeViewed(\''+id+'\')">\u2715</button></div>'}).join('')+'</div>';
 }
+function updateBadge(){document.getElementById('viewedCount').textContent=state.viewedIds.size}
 
-function toggleManage() {
-  state.showManage = !state.showManage;
-  renderManagePanel();
+// --- Actions ---
+function toggleViewed(btn){
+  const sn=btn.dataset.sn,item=state.results?.records?.find(r=>r.systemNumber===sn);
+  if(state.viewedIds.has(sn)){state.viewedIds.delete(sn);delete state.viewedDetails[sn]}
+  else{state.viewedIds.add(sn);if(item)state.viewedDetails[sn]={title:item._primaryTitle||item.objectType||'Untitled',accession:item.accessionNumber,objectType:item.objectType,maker:item._primaryMaker?.name||'',date:item._primaryDate||'',imageId:item._primaryImageId}}
+  scheduleSync();updateBadge();renderResults();if(state.showManage)renderManage();
 }
+function removeViewed(id){state.viewedIds.delete(id);delete state.viewedDetails[id];scheduleSync();updateBadge();renderManage();if(state.results)renderResults()}
+function toggleManage(){state.showManage=!state.showManage;renderManage()}
 
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// ---- Events ----
-document.getElementById('searchBtn').addEventListener('click', () => fetchResults(1));
-document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchResults(1); });
-document.getElementById('prevBtn').addEventListener('click', () => { if (state.page > 1) fetchResults(state.page - 1); });
-document.getElementById('nextBtn').addEventListener('click', () => fetchResults(state.page + 1));
-document.getElementById('viewedBadge').addEventListener('click', toggleManage);
-document.getElementById('hideToggle').addEventListener('change', function() {
-  state.hideViewed = this.checked;
-  document.getElementById('toggleTrack').classList.toggle('on', state.hideViewed);
-  if (state.results) renderResults();
+// --- Events ---
+document.getElementById('searchBtn').addEventListener('click',()=>fetchResults(1));
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')fetchResults(1)});
+document.getElementById('prevBtn').addEventListener('click',()=>{if(state.page>1)fetchResults(state.page-1)});
+document.getElementById('nextBtn').addEventListener('click',()=>fetchResults(state.page+1));
+document.getElementById('viewedBadge').addEventListener('click',toggleManage);
+document.getElementById('hideToggle').addEventListener('change',function(){
+  state.hideViewed=this.checked;document.getElementById('toggleTrack').classList.toggle('on',state.hideViewed);
+  if(state.results)renderResults();
 });
 
-// ---- Init ----
-loadViewed();
-updateViewedBadge();
-fetchResults(1);
-
-// Register service worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+// --- Init ---
+loadLocal();updateBadge();fetchResults(1);initAuth();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
