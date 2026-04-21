@@ -171,7 +171,6 @@ const CLIENT_ID='254726805331-s8n400uimdiqioij2m3v0h22523csr11.apps.googleuserco
 const SCOPES='https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.profile';
 const DRIVE_FILE='va_viewed_items.json';
 const VA_API='https://api.vam.ac.uk/v2/objects/search';
-const VA_OBJ='https://api.vam.ac.uk/v2/objects';
 const IMG='https://framemark.vam.ac.uk/collections';
 const OBJ_URL='https://collections.vam.ac.uk/item';
 const LOCAL_KEY='va_viewed_items';
@@ -276,32 +275,30 @@ function getBodyText(payload){
   return texts.join('\n');
 }
 
-function extractSystemNos(text){
-  const matches=[];
-  const re=/System No:\s*(O\d+)/gi;
+function extractObjects(text){
+  // Extract objects from V&A booking emails
+  // Format: "Title\nAccession No: E.xxx-xxxx, System No: Oxxxxxx"
+  const objects=[];
+  // Match accession + system number lines, capture title from preceding text
+  const re=/([^\n]+?)\s*\n\s*Accession No:\s*([^,]+),\s*System No:\s*(O\d+)/gi;
   let m;
   while((m=re.exec(text))!==null){
-    matches.push(m[1]);
+    const title=m[1].replace(/^\s+|\s+$/g,'').replace(/\s+/g,' ');
+    // Skip if "title" is actually a header like "Object list" or empty
+    if(title&&title.length>2&&!/^(Object list|You shared|Guest details)/i.test(title)){
+      objects.push({systemNumber:m[3],title:title,accession:m[2].trim()});
+    }
   }
-  return [...new Set(matches)];
-}
-
-async function lookupVAObject(systemNo){
-  try{
-    const r=await fetch(VA_OBJ+'/'+systemNo);
-    if(!r.ok)return null;
-    const d=await r.json();
-    const rec=d.record||d;
-    return{
-      systemNumber:rec.systemNumber||systemNo,
-      title:rec.titles?.[0]?.title||rec.objectType||'Untitled',
-      accession:rec.accessionNumber||'',
-      objectType:rec.objectType||'',
-      maker:rec.artistMakerPerson?.[0]?.name?.text||rec.artistMakerOrganisation?.[0]?.name?.text||'',
-      date:rec.productionDates?.[0]?.date?.text||'',
-      imageId:rec.images?.[0]||rec._primaryImageId||null,
-    };
-  }catch{return null}
+  // Fallback: also try standalone System No patterns we might have missed
+  const re2=/System No:\s*(O\d+)/gi;
+  const found=new Set(objects.map(o=>o.systemNumber));
+  let m2;
+  while((m2=re2.exec(text))!==null){
+    if(!found.has(m2[1])){
+      objects.push({systemNumber:m2[1],title:'Object '+m2[1],accession:''});
+    }
+  }
+  return objects;
 }
 
 async function importFromGmail(){
@@ -311,7 +308,6 @@ async function importFromGmail(){
   bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Scanning Gmail for V&A booking confirmations\u2026</span></div>';
 
   try{
-    // Search for all V&A booking confirmation emails
     let allMsgIds=[];
     let pageToken='';
     const query='subject:"Order an Object appointment"';
@@ -331,47 +327,48 @@ async function importFromGmail(){
 
     bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Found '+allMsgIds.length+' booking email'+(allMsgIds.length>1?'s':'')+'. Extracting objects\u2026</span></div>';
 
-    // Fetch each email and extract system numbers
-    const allSystemNos=new Set();
+    // Extract objects directly from email bodies
+    const allObjects=new Map(); // systemNumber -> object info
     for(const msgId of allMsgIds){
       try{
         const msg=await gmailReq('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+msgId+'?format=full');
         const body=getBodyText(msg.payload);
-        const nos=extractSystemNos(body);
-        nos.forEach(n=>allSystemNos.add(n));
+        const objs=extractObjects(body);
+        for(const obj of objs){
+          if(!allObjects.has(obj.systemNumber))allObjects.set(obj.systemNumber,obj);
+        }
       }catch(e){console.warn('Failed to read message',msgId,e)}
     }
 
     // Filter out ones we already have
-    const newNos=[...allSystemNos].filter(sn=>!state.viewedIds.has(sn));
+    const newObjs=[...allObjects.values()].filter(o=>!state.viewedIds.has(o.systemNumber));
 
-    if(newNos.length===0){
-      const total=allSystemNos.size;
+    if(newObjs.length===0){
+      const total=allObjects.size;
       bar.innerHTML='<div class="import-bar"><span class="import-done">\u2713 All '+total+' object'+(total>1?'s':'')+' from Gmail already in your viewed list.</span></div>';
       setTimeout(()=>{bar.innerHTML=''},4000);
       return;
     }
 
-    bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Looking up '+newNos.length+' new object'+(newNos.length>1?'s':'')+' from V&A API\u2026</span></div>';
+    bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Adding '+newObjs.length+' new object'+(newObjs.length>1?'s':'')+'\u2026</span></div>';
 
-    // Look up each new system number
+    // Add objects directly from email data (no API lookup needed)
     let imported=0;
-    for(const sn of newNos){
-      const info=await lookupVAObject(sn);
-      if(info){
-        state.viewedIds.add(sn);
-        state.viewedDetails[sn]={
-          title:info.title,
-          accession:info.accession,
-          objectType:info.objectType,
-          maker:info.maker,
-          date:info.date,
-          imageId:info.imageId,
-        };
-        imported++;
-        bar.innerHTML='<div class="import-bar"><div class="spinner"></div><span class="import-text">Imported '+imported+' of '+newNos.length+' objects\u2026</span></div>';
-      }
+    for(const obj of newObjs){
+      state.viewedIds.add(obj.systemNumber);
+      state.viewedDetails[obj.systemNumber]={
+        title:obj.title,
+        accession:obj.accession,
+        objectType:'',
+        maker:'',
+        date:'',
+        imageId:null,
+      };
+      imported++;
     }
+
+    // Try to enrich with images from V&A search API (best-effort, non-blocking)
+    enrichWithImages(newObjs);
 
     // Save
     saveLocal();
@@ -392,6 +389,31 @@ async function importFromGmail(){
     bar.innerHTML='<div class="import-bar"><span class="import-err">\u26a0 Gmail import failed: '+e.message+'</span></div>';
     setTimeout(()=>{bar.innerHTML=''},6000);
   }
+}
+
+// Best-effort: fetch images for imported items via V&A search API
+async function enrichWithImages(objs){
+  for(const obj of objs){
+    try{
+      const r=await fetch(VA_API+'?q='+encodeURIComponent(obj.systemNumber)+'&page_size=1');
+      if(!r.ok)continue;
+      const d=await r.json();
+      const rec=d.records?.[0];
+      if(rec&&rec.systemNumber===obj.systemNumber){
+        const det=state.viewedDetails[obj.systemNumber];
+        if(det){
+          det.imageId=rec._primaryImageId||null;
+          det.objectType=rec.objectType||det.objectType;
+          det.maker=rec._primaryMaker?.name||det.maker;
+          det.date=rec._primaryDate||det.date;
+        }
+      }
+    }catch{}
+  }
+  saveLocal();
+  if(state.showManage)renderManage();
+  // Quiet sync to Drive
+  if(auth.token){try{await writeFile({ids:[...state.viewedIds],details:state.viewedDetails})}catch{}}
 }
 
 // --- Auth UI ---
