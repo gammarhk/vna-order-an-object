@@ -185,8 +185,23 @@ function loadLocal(){try{const r=localStorage.getItem(LOCAL_KEY);if(r){const d=J
 function saveLocal(){try{localStorage.setItem(LOCAL_KEY,JSON.stringify({ids:[...state.viewedIds],details:state.viewedDetails}))}catch{}}
 
 // --- Google Drive ---
+async function reAuth(){
+  return new Promise((resolve)=>{
+    const origCb=auth.tokenClient.callback;
+    auth.tokenClient.callback=async(resp)=>{
+      auth.tokenClient.callback=origCb;
+      if(resp.access_token){auth.token=resp.access_token;await fetchUser();renderAuth()}
+      resolve();
+    };
+    auth.tokenClient.requestAccessToken({prompt:''});
+  });
+}
 async function driveReq(url,opts={}){
-  const r=await fetch(url,{...opts,headers:{Authorization:'Bearer '+auth.token,...(opts.headers||{})}});
+  let r=await fetch(url,{...opts,headers:{Authorization:'Bearer '+auth.token,...(opts.headers||{})}});
+  if(r.status===401){
+    await reAuth();
+    r=await fetch(url,{...opts,headers:{Authorization:'Bearer '+auth.token,...(opts.headers||{})}});
+  }
   if(!r.ok)throw new Error('Drive '+r.status);
   return r;
 }
@@ -244,7 +259,11 @@ function scheduleSync(){saveLocal();if(!auth.token)return;clearTimeout(syncTimer
 // Gmail Import
 // ================================
 async function gmailReq(url){
-  const r=await fetch(url,{headers:{Authorization:'Bearer '+auth.token}});
+  let r=await fetch(url,{headers:{Authorization:'Bearer '+auth.token}});
+  if(r.status===401){
+    await reAuth();
+    r=await fetch(url,{headers:{Authorization:'Bearer '+auth.token}});
+  }
   if(!r.ok)throw new Error('Gmail '+r.status);
   return r.json();
 }
