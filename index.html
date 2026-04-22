@@ -243,7 +243,9 @@ async function syncFrom(){
       await writeFile({ids:[...state.viewedIds],details:state.viewedDetails});
     }
     setSyncSt('signed-in');updateBadge();
-    if(state.results)renderResults();if(state.showManage)renderManage();
+    if(state.hideViewed){if(filtered.buffer.length)renderFiltered()}
+    else{if(state.results)renderNormal()}
+    if(state.showManage)renderManage();
   }catch(e){console.error('Sync error:',e);setSyncSt('error')}
 }
 async function syncTo(){
@@ -392,7 +394,8 @@ async function importFromGmail(){
     // Save
     saveLocal();
     updateBadge();
-    if(state.results)renderResults();
+    if(state.hideViewed){if(filtered.buffer.length)renderFiltered()}
+    else{if(state.results)renderNormal()}
     if(state.showManage)renderManage();
 
     // Sync to Drive
@@ -460,7 +463,9 @@ function renderAuth(){
 }
 function signOut(){
   if(auth.token)google.accounts.oauth2.revoke(auth.token,()=>{});
-  auth.token=null;auth.user=null;auth.fileId=null;auth.showMenu=false;renderAuth();
+  auth.token=null;auth.user=null;auth.fileId=null;auth.showMenu=false;
+  localStorage.removeItem('va_has_authed');
+  renderAuth();
 }
 async function fetchUser(){
   try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+auth.token}});
@@ -476,15 +481,24 @@ function initAuth(){
         callback:async(resp)=>{
           if(resp.access_token){
             auth.token=resp.access_token;
+            localStorage.setItem('va_has_authed','1');
             await fetchUser();
             renderAuth();
             await syncFrom();
-            // Auto-import from Gmail after Drive sync
             importFromGmail();
           }
+        },
+        error_callback:(err)=>{
+          // Silent auto-sign-in failed — just show button
+          console.log('Auto sign-in skipped:',err);
+          renderAuth();
         }
       });
       renderAuth();
+      // Auto-sign-in if user previously authenticated
+      if(localStorage.getItem('va_has_authed')){
+        try{auth.tokenClient.requestAccessToken({prompt:''})}catch{}
+      }
     }
   },100);
 }
