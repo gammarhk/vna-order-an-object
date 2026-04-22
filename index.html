@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="V&A Browser">
@@ -178,7 +179,11 @@ const IMPORT_TS_KEY='va_last_gmail_import';
 const PAGE_SIZE=100;
 
 let state={page:1,results:null,viewedIds:new Set(),viewedDetails:{},hideViewed:false,showManage:false};
+window._state=state; // expose for console debugging
 let auth={token:null,user:null,fileId:null,syncing:false,tokenClient:null,showMenu:false};
+window._auth=auth; // expose for console debugging
+window._state=state;
+window._auth=auth; // expose for console debugging
 
 // --- Local storage ---
 function loadLocal(){try{const r=localStorage.getItem(LOCAL_KEY);if(r){const d=JSON.parse(r);state.viewedIds=new Set(d.ids||[]);state.viewedDetails=d.details||{}}}catch{}}
@@ -464,7 +469,6 @@ function renderAuth(){
 function signOut(){
   if(auth.token)google.accounts.oauth2.revoke(auth.token,()=>{});
   auth.token=null;auth.user=null;auth.fileId=null;auth.showMenu=false;
-  localStorage.removeItem('va_has_authed');
   renderAuth();
 }
 async function fetchUser(){
@@ -481,24 +485,14 @@ function initAuth(){
         callback:async(resp)=>{
           if(resp.access_token){
             auth.token=resp.access_token;
-            localStorage.setItem('va_has_authed','1');
             await fetchUser();
             renderAuth();
             await syncFrom();
             importFromGmail();
           }
-        },
-        error_callback:(err)=>{
-          // Silent auto-sign-in failed — just show button
-          console.log('Auto sign-in skipped:',err);
-          renderAuth();
         }
       });
       renderAuth();
-      // Auto-sign-in if user previously authenticated
-      if(localStorage.getItem('va_has_authed')){
-        try{auth.tokenClient.requestAccessToken({prompt:''})}catch{}
-      }
     }
   },100);
 }
