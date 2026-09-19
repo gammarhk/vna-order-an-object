@@ -49,6 +49,7 @@ header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:u
 .filters-row select,.filters-row input{padding:7px 10px;font-size:13px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);-webkit-appearance:none}
 .filters-row select{padding-right:24px;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a6e63'/%3E%3C/svg%3E") no-repeat right 8px center}
 .year-input{width:80px}
+.place-input{width:150px}
 .year-dash{color:var(--text2);font-size:13px}
 .toggle-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .toggle-label{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
@@ -144,6 +145,8 @@ header p{font-size:11px;color:var(--text2);letter-spacing:.05em;text-transform:u
         <option>Print</option><option>Sculpture</option><option>Textile</option>
         <option>Watercolour</option>
       </select>
+      <input type="text" class="place-input" id="placeFilter" list="placeList" placeholder="Place (e.g. Japan)" autocomplete="off">
+      <datalist id="placeList"></datalist>
       <input type="number" class="year-input" id="yearFrom" placeholder="Year from">
       <span class="year-dash">–</span>
       <input type="number" class="year-input" id="yearTo" placeholder="Year to">
@@ -173,6 +176,7 @@ const CLIENT_ID='254726805331-s8n400uimdiqioij2m3v0h22523csr11.apps.googleuserco
 const SCOPES='https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.profile';
 const DRIVE_FILE='va_viewed_items.json';
 const VA_API='https://api.vam.ac.uk/v2/objects/search';
+const VA_CLUSTERS='https://api.vam.ac.uk/v2/objects/clusters';
 const IMG='https://framemark.vam.ac.uk/collections';
 const OBJ_URL='https://collections.vam.ac.uk/item';
 const LOCAL_KEY='va_viewed_items';
@@ -552,11 +556,39 @@ function buildParams(){
   if(parsed.apiQuery)p.set('q',parsed.apiQuery);
   const v=document.getElementById('venueFilter').value;
   const t=document.getElementById('typeFilter').value;
+  const pl=document.getElementById('placeFilter').value.trim();
   const yf=document.getElementById('yearFrom').value;
   const yt=document.getElementById('yearTo').value;
   if(v)p.set('kw_resident_venue',v);if(t)p.set('kw_object_type',t);
+  // q_place_name is a phrase search on the place field; quote it so
+  // multi-word places ("Tokyo (city)") match as one phrase
+  if(pl)p.set('q_place_name',/^".*"$/.test(pl)?pl:'"'+pl+'"');
   if(yf)p.set('year_made_from',yf);if(yt)p.set('year_made_to',yt);
   return p;
+}
+
+// Populate the Place suggestion list from the clusters endpoint, so the
+// options mirror the V&A site's Place facet (names + object counts).
+// Deliberately ignores the current place value so the list stays browsable.
+async function loadPlaceSuggestions(){
+  const dl=document.getElementById('placeList');
+  if(!dl)return;
+  const p=buildParams();
+  p.delete('q_place_name');
+  p.set('cluster_size',100);
+  try{
+    const r=await fetch(VA_CLUSTERS+'/place/search?'+p);
+    if(!r.ok)return;
+    const d=await r.json();
+    // Endpoint shape varies: bare array, or nested under clusters.place.terms
+    const terms=Array.isArray(d)?d:(d.clusters?.place?.terms||d.place?.terms||[]);
+    if(!terms.length)return;
+    dl.innerHTML=terms.map(t=>{
+      const v=t.value||t.term||'';
+      const c=t.count||0;
+      return v?'<option value="'+esc(v)+'" label="'+esc(v+' ('+c.toLocaleString()+')')+'"></option>':'';
+    }).join('');
+  }catch{}
 }
 
 // Normal mode: direct API pagination
@@ -695,6 +727,8 @@ function updateBadge(){document.getElementById('viewedCount').textContent=state.
 function doSearch(){
   if(state.hideViewed)fetchFiltered(1);
   else fetchResults(1);
+  // Refresh place options to match the other filters (non-blocking)
+  loadPlaceSuggestions();
 }
 
 function toggleViewed(btn){
@@ -731,6 +765,17 @@ function toggleManage(){state.showManage=!state.showManage;renderManage()}
 // --- Events ---
 document.getElementById('searchBtn').addEventListener('click',doSearch);
 document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch()});
+// Enter fires both keydown and change, so dedupe on the committed value
+let lastPlaceSearched=null;
+function placeSearch(){
+  const v=document.getElementById('placeFilter').value.trim();
+  if(v===lastPlaceSearched)return;
+  lastPlaceSearched=v;
+  doSearch();
+}
+document.getElementById('placeFilter').addEventListener('keydown',e=>{if(e.key==='Enter')placeSearch()});
+// Picking from the suggestion list fires 'change', not 'keydown'
+document.getElementById('placeFilter').addEventListener('change',placeSearch);
 document.getElementById('prevBtn').addEventListener('click',()=>{
   if(state.page>1){
     if(state.hideViewed){state.page--;renderFiltered()}
